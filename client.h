@@ -11,20 +11,20 @@ struct client {
     int cliFD;
     // State of the user
     bool online;
-    // Subscribed topics
-    std::vector<char *> subscribedTopics;
     // Messages that had not been sent due to
     // disconnection
     std::queue<UDP_Message> pendingMessages;
+    // The SF state of each topic 
+    std::map<std::string, int> sfTopic;
 
     client() {}
 
-    client(int new_cliFD, bool new_online, std::vector<char*> new_subscTop,
+    client(int new_cliFD, bool new_online, std::map<std::string, int> new_sfTopic,
         std::queue<UDP_Message> new_pendingMessages, char* new_clientID) {
             strcpy(clientID, new_clientID);
             cliFD = new_cliFD;
             online = new_online;
-            subscribedTopics = new_subscTop;
+            sfTopic = new_sfTopic;
             pendingMessages = new_pendingMessages;
     }
 };
