@@ -1,0 +1,42 @@
+Student: Banu Miruna-Elena
+Group: 321CA
+
+Description:
+
+    This application represents a simulation of a server that is an intermediary
+for two types of clients: TCP and UDP.
+
+subscriber.cpp:
+
+    This source represents the implementation of the TCP subscriber. It creates
+a socket and binds it to the server address. It adds to a set of file
+descriptors those for the STDIN and server and waits for an action on any of
+them.
+    If any of the following commands is being received from the stdin: exit,
+subscribe, unsubscribe, then the client forwards it to the server so that it
+can update the state.
+    Otherwise, if the client receives any content from the server, it prints it
+to the STDOUT.
+
+server.cpp:
+
+    The server is an intermediary for the two protocols, thus it creates two types
+of sockets: TCP and UDP. Then, it binds both of them to the respective addreses and
+listens for any activity on eachd of the sockets.
+    Upon receiving any signal on the sockets, the server does one of the following:
+
+1. If it receives the "exit" command, it terminates the activity for every client and
+itself.
+
+2. If it receives acivity on a new TCP socket, it adds it to the file descriptors set.
+If the newly connected client has not already connected, creates a new client struc-
+ture and stores it in the unordered map. Otherwise, it sends the messages the client
+had received while it was online. Moreover, the existing clients are notified about
+the new connection and the new client about the existing ones.
+
+3. If it receives activity on the UDP socket, the server interprets the message and
+forwards it to the TCP clients subscribed to the respective topic or adds it to the
+queue of pending messages for the offline subscribers.
+
+4. If it receives activity on any of the existing TCP clients sockets, the server
+updates the state of the said client upon the message it receives.

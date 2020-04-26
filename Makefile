@@ -1,14 +1,14 @@
 CC = g++
-CXXFLAGS = -Wall -g -std=c++11 -O3
+CXXFLAGS = -Wall -g -std=c++11
 
 SERV = server.cpp
-CLI = client.cpp
+CLI = subscriber.cpp
 
-PORT = 4320
+PORT = 4321
 
 IP_SERVER = 127.0.0.1
 
-build: server.cpp client.cpp helpers.h client.h udp_message.h notification.h
+build: server.cpp subscriber.cpp helpers.h client.h udp_message.h notification.h functions.h
 	$(CC) $(CXXFLAGS) $(SERV) -o server
 	$(CC) $(CXXFLAGS) $(CLI) -o subscriber
 
