@@ -4,13 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/*
- * Macro de verificare a erorilor
- * Exemplu:
- *     int fd = open(file_name, O_RDONLY);
- *     DIE(fd == -1, "open failed");
- */
-
 #define DIE(assertion, call_description)	\
 	do {									\
 		if (assertion) {					\
@@ -21,7 +14,7 @@
 		}									\
 	} while(0)
 
-#define BUFLEN		2000 // max buffer length
-#define MAX_CLIENTS	150	// numarul maxim de clienti in asteptare
+#define BUFLEN		2000
+#define MAX_CLIENTS	150
 
 #endif
