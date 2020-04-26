@@ -159,9 +159,17 @@ int main(int argc, char *argv[]) {
 			UDP_Message msg;
 			memset(&msg, 0, sizeof(UDP_Message));
 			recv(sockfd, &msg, sizeof(UDP_Message), 0);
-			std::cout <<"\n\n Message from server:\n" << msg.topic <<"\n";
+			//std::cout <<"\n\n Message from server:\n" << msg.topic <<"\n";
 			if (strncmp(msg.topic, "exit", 5) == 0) {
 				break;
+			}
+
+			if (strncmp(msg.topic, "notif", 5) == 0) {
+				std::cout << msg.value << "\n";
+			} else {
+				// IP:PORT client_UDP - topic - tip_date - valoare mesaj
+				std::cout << msg.udpIP << ":" << msg.udpPort << " - " <<
+					msg.topic << " - " << msg.type << " - " << msg.value << "\n";
 			}
 		}	
 	}

@@ -165,10 +165,8 @@ int main(int argc, char *argv[]) {
 					memset(tcpClient.clientID, 0, 12);
 					strcpy(tcpClient.clientID, buffer);
 
-					std::cout << "Client details:\n";
-					std::cout << tcpClient.cliFD<< " " << tcpClient.clientID << " "
-						<< tcpClient.online << " " << tcpClient.pendingMessages.size()
-						<< tcpClient.subscribedTopics.size() << "\n";
+					std::cout<< "New client " << tcpClient.clientID << " connected from ";
+					std::cout << inet_ntoa(clientAddr.sin_addr) << ":" << ntohs(clientAddr.sin_port) << "\n";
 
 					// auto it = tcpClients.find(buffer);
   					// if (it != tcpClients.end()) {
@@ -179,29 +177,43 @@ int main(int argc, char *argv[]) {
 					// 	}
 					// }
 
-					// // Adds the new client to the map
-					// tcpClients[buffer] = tcpClient;
+					// Adds the new client to the map
+					tcpClients.insert({tcpClient.clientID, tcpClient});
 
 					// Notify the new client of the existing clients
 					for (int j = 0; j < fdMax; ++j) {
 						if (j != listenTCP) {
+							UDP_Message msg;
+							memset(&msg, 0, sizeof(UDP_Message));
+							memset(msg.topic, 0, sizeof(msg.topic));
+							strcpy(msg.topic, "notif");
+
 							char message_to_send[BUFLEN + 20] = "Existing client ";
 							char src = j + 48;
 							message_to_send[16] = src;
 							message_to_send[17] = '\n';
+							memset(msg.value, 0, sizeof(msg.value));
+							strcpy(msg.value, message_to_send);
 
-							send(newsockfd, message_to_send, strlen(message_to_send), 0);
+							send(newsockfd, &msg, sizeof(msg), 0);
 						}
 					}
 
 					// Notify the existing clients of the new client
 					for (int j = 0; j < fdMax; ++j) {
 						if (j != listenTCP) {
+							UDP_Message msg;
+							memset(&msg, 0, sizeof(UDP_Message));
+							memset(msg.topic, 0, sizeof(msg.topic));
+							strcpy(msg.topic, "notif");
+
 							char message_to_send[BUFLEN + 20] = "New client ";
 							char src = newsockfd + 48;
 							message_to_send[11] = src;
+							memset(msg.value, 0, sizeof(msg.value));
+							strcpy(msg.value, message_to_send);
 
-							send(j, message_to_send, strlen(message_to_send), 0);
+							send(j, &msg, sizeof(msg), 0);
 						}
 					}
 
@@ -217,12 +229,16 @@ int main(int argc, char *argv[]) {
 					// Parse the message
 					UDP_Message udpMessage;
 					std::cout << "\nUDP Message:\n";
+					strcpy(udpMessage.udpIP, inet_ntoa(clientAddr.sin_addr));
+					sprintf(udpMessage.udpPort, "%u", (unsigned int)ntohs(clientAddr.sin_port));
 					strcpy(udpMessage.topic, buffer);
-					udpMessage.type = *(buffer + 50);
-					std::cout << udpMessage.type << " " << udpMessage.topic << " " <<"\n";
+					//udpMessage.type = *(buffer + 50);
+					int type = *(buffer + 50);
+					std::cout << udpMessage.udpIP << " " << udpMessage.udpPort << " " <<"\n";
 
-					switch (udpMessage.type) {
+					switch (type) {
 						case 0: {
+							// If it's integer
 							// CHECK SIGN BYTE
 							int32_t number = ntohl(*(uint32_t*)(buffer + 52));
 							if (*(buffer + 51) == 1) {
@@ -230,39 +246,48 @@ int main(int argc, char *argv[]) {
 							}
 
 							int sgn = (int)number;
+							char message[30];
+							sprintf(udpMessage.type, "%s", "INT\0");
 							sprintf(udpMessage.value, "%d", sgn);
 							break;
 						}
 
 						case 1: {
+							// If it's short real
 							// CHECK SIGN BYTE
 							float shortNum = ntohs(*(uint16_t*)(buffer + 51));
 							shortNum /= (float)(100 * 1.0);
-							std::cout << "Short value: " << shortNum << "\n";
+							//std::cout << "Short value: " << shortNum << "\n";
+							sprintf(udpMessage.type, "%s", "SHORT_REAL\0");
 							sprintf(udpMessage.value, "%.2f", shortNum);
 							break;
 						}
 
 						case 2: {
+							// If it's float
 							// CHECK SIGN BYTE
 							int sign = *(buffer + 51);
 							sign = sign ? -1 : 1;
 							uint32_t x = ntohl(*(uint32_t*)(buffer + 52));
 							int e = (int)*(buffer + 56);
 							float doubleNum = 1.0 * sign *  x * pow(10, -e);
+							sprintf(udpMessage.type, "%s", "FLOAT\0");
+							sprintf(udpMessage.value, "%.*f", e, doubleNum);
 							break;
 						}
 
 						default:
+							// Else it's string
+							sprintf(udpMessage.type, "%s", "STRING\0");
 							strcpy(udpMessage.value, (buffer + 51));
 							std::cout << "Value: " << udpMessage.value << "\n";
 						break;
 					}
 
 					// SEND THE MESSAGE
-					// for (int k = 0; k < topics[buffer].size(); ++k) {
-					// 	send(topics[buffer][k], &udpMessage, sizeof(UDP_Message), 0);
-					// }
+					for (int k = 0; k < topics[udpMessage.topic].size(); ++k) {
+						send(topics[udpMessage.topic][k].cliFD, &udpMessage, sizeof(UDP_Message), 0);
+					}
 
 				} else {	
 					// Received data on one of the TCP client sockets
@@ -284,33 +309,62 @@ int main(int argc, char *argv[]) {
 
 					if (strncmp(notif.type, "subscribe", 9) == 0) {
 						//std::cout << "Client with sockfd = " << i << ":\n" << buffer << std::endl;
-						for (int k = 0; k < topics[notif.topic].size(); ++i) {
-							if (strcmp(topics[notif.topic][k].clientID, notif.clientId) == 0) {
+						// Search topic
+						auto it = topics.find(notif.topic);
+						int newConnection = 0;
+						if (it == topics.end()) {
+							std::vector<client> cliArr;
+							newConnection = 1;
+							cliArr.push_back(tcpClients[notif.clientId]);
+							topics.insert({notif.topic, cliArr});
+						}						
+
+						for (int k = 0; k < topics[notif.topic].size(); ++k) {
+							if (strcmp(topics[notif.topic][k].clientID, notif.clientId) == 0 &&
+								newConnection == 0) {
 								std::cout << "The client has already been subscribed.\n";
-							} else {
+							} else if (!newConnection){
 								topics[notif.topic].push_back(tcpClients[notif.clientId]);
+								//std::cout << topics[notif.topic].size() << " ";
 							}
 						}
+
+						// std::cout << "Subscribed clients to the topic " << notif.topic <<":\n";
+						// for (int k = 0; k < topics[notif.topic].size(); ++k) {
+						// 	std::cout << topics[notif.topic][k].clientID << " ";
+						// }
+						// std::cout<<"\n";
 					}
 
 					if (strncmp(notif.type, "unsubscribe", 11) == 0) {
 						//std::cout << "Client with sockfd = " << i << ":\n" << buffer << std::endl;
 						int found = 0;
-						auto it = topics[notif.topic].begin();
-						for (; it != topics[notif.topic].end(); ++it) {
+						auto it = topics.find(notif.topic);
+						if (it == topics.end()) {
+							std::cout << "Topic not found.\n";
+						}	
+
+						for (auto it = topics[notif.topic].begin(); it != topics[notif.topic].end(); ++it) {
 							if (strcmp(it->clientID, notif.clientId) == 0) {
 								found = 1;
 								topics[notif.topic].erase(it);
 								break;
 							}
 						}
+						
+						// std::cout << "Subscribed clients to the topic " << notif.topic <<":\n";
+						// for (int k = 0; k < topics[notif.topic].size(); ++k) {
+						// 	std::cout << topics[notif.topic][k].clientID << " ";
+						// }
+						// std::cout<<"\n";
+
 						if (found == 0) {
 							std::cout<<"The client was not subscribed to this topic.\n";
 						}
 					}
 
-					std::cout<<"Notification:\n";
-					std::cout<<notif.type<<" "<<notif.clientId<<"\n";
+					// std::cout<<"Notification:\n";
+					// std::cout<<notif.type<<" "<<notif.clientId<<"\n";
 
 					// std::cout << "\n\nExisting TCP client message:\n";
 					// std::cout << buffer << "\n";

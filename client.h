@@ -12,14 +12,14 @@ struct client {
     // State of the user
     bool online;
     // Subscribed topics
-    std::vector<std::string> subscribedTopics;
+    std::vector<char *> subscribedTopics;
     // Messages that had not been sent due to
     // disconnection
     std::queue<UDP_Message> pendingMessages;
 
     client() {}
 
-    client(int new_cliFD, bool new_online, std::vector<std::string> new_subscTop,
+    client(int new_cliFD, bool new_online, std::vector<char*> new_subscTop,
         std::queue<UDP_Message> new_pendingMessages, char* new_clientID) {
             strcpy(clientID, new_clientID);
             cliFD = new_cliFD;
